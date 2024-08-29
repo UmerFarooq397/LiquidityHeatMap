@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTC/USDT Liquidation Heatmap</title>
+    <title>BTC/USDT Candlestick Chart</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -14,7 +14,7 @@
         h1 {
             text-align: center;
         }
-        #heatmap {
+        #candlestickChart {
             display: block;
             margin: 0 auto;
         }
@@ -28,15 +28,12 @@
     </style>
 </head>
 <body>
-    <h1>BTC/USDT Liquidation Heatmap</h1>
-    <canvas id="heatmap" width="800" height="400"></canvas>
+    <h1>BTC/USDT Candlestick Chart</h1>
+    <div id="candlestickChart"></div>
     <div id="recommendations"></div>
 
-    <!-- Include Chart.js from a CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@latest"></script>
-
-    <!-- Include a date adapter for Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@latest"></script>
+    <!-- Include ApexCharts from a CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
     <!-- Include your custom script -->
     <script src="heatmap.js"></script>
