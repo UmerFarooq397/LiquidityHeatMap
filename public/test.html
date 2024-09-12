@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Chart & Order Book with Moon Phases & Signals</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+        }
+        #chart-container {
+            width: 70%;
+            display: flex;
+            flex-direction: column;
+        }
+        #chart {
+            height: 400px;
+        }
+        #volume {
+            height: 150px;
+        }
+        #orderBook {
+            width: 25%;
+            margin-left: 2%;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: right;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        #moonPhase {
+            margin-top: 20px;
+            text-align: center;
+        }
+        #tradeSignal {
+            margin-top: 10px;
+            color: red;
+            font-weight: bold;
+            font-size: 20px;
+        }
+    </style>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+
+<div id="chart-container">
+    <div id="chart"></div>
+    <div id="volume"></div>
+</div>
+
+<div id="orderBook">
+    <h3>Order Book</h3>
+    <table id="bidsTable">
+        <tr>
+            <th>Price</th>
+            <th>Size</th>
+        </tr>
+    </table>
+    <table id="asksTable">
+        <tr>
+            <th>Price</th>
+            <th>Size</th>
+        </tr>
+    </table>
+
+    <div id="moonPhase">
+        <h3>Moon Phase</h3>
+        <p id="moonPhaseText">Fetching...</p>
+    </div>
+
+    <div id="tradeSignal">
+        <p id="signalText"></p>
+    </div>
+</div>
+
+<script>
+    const ws = new WebSocket('ws://localhost:3000');
+
+    ws.onopen = function() {
+        console.log('WebSocket connection established');
+    };
+
+    ws.onmessage = function(event) {
+        const message = JSON.parse(event.data);
+        if (message.type === 'candles') {
+            updateChart(message.data);
+        } else if (message.type === 'orderBook') {
+            updateOrderBook(message.data);
+        } else if (message.type === 'moonPhase') {
+            updateMoonPhaseAndSignal(message.data);
+        }
+    };
+
+    // Create candlestick chart
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+        width: document.getElementById('chart').offsetWidth,
+        height: 400,
+        layout: {
+            backgroundColor: '#ffffff',
+            textColor: '#000000',
+        },
+        priceScale: {
+            autoScale: true,
+        },
+        timeScale: {
+            autoScale: true,
+            timeVisible: true,
+            secondsVisible: false,
+        },
+    });
+
+    // Create volume chart
+    const volumeChart = LightweightCharts.createChart(document.getElementById('volume'), {
+        width: document.getElementById('volume').offsetWidth,
+        height: 150,
+        layout: {
+            backgroundColor: '#ffffff',
+            textColor: '#000000',
+        },
+        timeScale: {
+            visible: false,
+        },
+    });
+
+    // Add candlestick series
+    const candleSeries = chart.addCandlestickSeries();
+
+    // Add volume series
+    const volumeSeries = volumeChart.addHistogramSeries({
+        color: '#26a69a',
+        priceLineVisible: false,
+        crossHairMarkerVisible: false,
+    });
+
+    function updateChart(candleData) {
+        if (candleData && candleData.length > 0) {
+            const formattedData = candleData.map(item => ({
+                time: item.time,
+                open: item.open,
+                high: item.high,
+                low: item.low,
+                close: item.close,
+                volume: item.volume
+            }));
+
+            candleSeries.setData(formattedData);
+
+            const volumeData = formattedData.map(candle => ({
+                time: candle.time,
+                value: candle.volume,
+                color: candle.close > candle.open ? 'green' : 'red'
+            }));
+            volumeSeries.setData(volumeData);
+        } else {
+            console.error('Invalid candlestick data:', candleData);
+        }
+    }
+
+    function updateOrderBook(orderBook) {
+        const bidsTable = document.getElementById('bidsTable');
+        const asksTable = document.getElementById('asksTable');
+
+        bidsTable.innerHTML = '<tr><th>Price</th><th>Size</th></tr>';
+        asksTable.innerHTML = '<tr><th>Price</th><th>Size</th></tr>';
+
+        orderBook.bids.forEach(bid => {
+            const row = bidsTable.insertRow();
+            row.insertCell(0).innerText = parseFloat(bid.price).toFixed(2);
+            row.insertCell(1).innerText = parseFloat(bid.quantity).toFixed(4);
+        });
+
+        orderBook.asks.forEach(ask => {
+            const row = asksTable.insertRow();
+            row.insertCell(0).innerText = parseFloat(ask.price).toFixed(2);
+            row.insertCell(1).innerText = parseFloat(ask.quantity).toFixed(4);
+        });
+    }
+
+    function updateMoonPhaseAndSignal(moonData) {
+        const moonPhaseText = document.getElementById('moonPhaseText');
+        const signalText = document.getElementById('signalText');
+
+        let moonText = '';
+
+        if (moonData.newMoon) {
+            moonText = '🌑 New Moon';
+        } else if (moonData.fullMoon) {
+            moonText = '🌕 Full Moon';
+        } else {
+            moonText = 'Waxing/Waning Phase';
+        }
+
+        moonPhaseText.innerText = moonText;
+
+        if (moonData.tradeSignal) {
+            signalText.innerText = `${moonData.tradeSignal} Signal: ${moonData.tradeSignal === 'BUY' ? '📈 Uptrend' : '📉 Downtrend'}`;
+        } else {
+            signalText.innerText = '';
+        }
+    }
+</script>
+
+</body>
+</html>

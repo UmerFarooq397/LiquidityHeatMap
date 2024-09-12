@@ -1,80 +1,122 @@
 const WebSocket = require('ws');
 const Binance = require('binance-api-node').default;
 
-// Create a WebSocket server
 const wss = new WebSocket.Server({ port: 3000 });
 const client = Binance();
 
-// Broadcast trade data to all connected clients
-function broadcastTradeData(price, intensity) {
-    const tradeData = JSON.stringify({ p: price, i: intensity });
+// Moon phase strategy variables
+const newMoonReferenceDate = new Date('2021-01-13T05:00:00Z').getTime();
+const moonCycle = 2551442876.8992; // Lunar cycle duration in milliseconds
+
+let lastNewMoonPrice = null;
+let lastFullMoonPrice = null;
+let currentNewMoonPrice = null;
+let currentFullMoonPrice = null;
+
+let lastTradeSignal = null; // To store the last trade action (BUY/SELL)
+
+// Calculate the current moon phase (0 for New Moon, 1 for Full Moon)
+function getCurrentMoonPhase() {
+    const currentTime = Date.now();
+    const diff = (currentTime - newMoonReferenceDate) % moonCycle;
+    return diff / moonCycle;
+}
+
+// Broadcast moon phase data and buy/sell signals to all connected clients
+async function broadcastMoonPhaseAndSignals() {
+    const moonPhase = getCurrentMoonPhase();
+    const isNewMoon = moonPhase < 0.5;
+    const isFullMoon = moonPhase > 0.5;
+
+    const currentPrice = await getCurrentBTCPrice();
+
+    let tradeSignal = null;
+    
+    if (isNewMoon) {
+        if (lastNewMoonPrice && currentNewMoonPrice && currentPrice < lastNewMoonPrice) {
+            tradeSignal = 'SELL';
+        }
+        lastNewMoonPrice = currentNewMoonPrice;
+        currentNewMoonPrice = currentPrice;
+    }
+
+    if (isFullMoon) {
+        if (lastFullMoonPrice && currentFullMoonPrice && currentPrice > lastFullMoonPrice) {
+            tradeSignal = 'BUY';
+        }
+        lastFullMoonPrice = currentFullMoonPrice;
+        currentFullMoonPrice = currentPrice;
+    }
+
+    const moonData = {
+        newMoon: isNewMoon,
+        fullMoon: isFullMoon,
+        moonPhase,
+        tradeSignal
+    };
+
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
-            client.send(tradeData);
+            client.send(JSON.stringify({ type: 'moonPhase', data: moonData }));
+        }
+    });
+
+    // Save last trade signal
+    if (tradeSignal) {
+        lastTradeSignal = tradeSignal;
+    }
+}
+
+// Fetch the current BTC price from Binance
+async function getCurrentBTCPrice() {
+    const ticker = await client.prices({ symbol: 'BTCUSDT' });
+    return parseFloat(ticker.BTCUSDT);
+}
+
+// Fetch and broadcast candlestick data
+async function fetchAndBroadcastCandlestickData() {
+    try {
+        const candles = await client.candles({ symbol: 'BTCUSDT', interval: '1m' });
+        const formattedCandles = candles.map(candle => ({
+            time: new Date(candle.openTime).getTime() / 1000,
+            open: parseFloat(candle.open),
+            high: parseFloat(candle.high),
+            low: parseFloat(candle.low),
+            close: parseFloat(candle.close),
+            volume: parseFloat(candle.volume),
+        }));
+        broadcastData('candles', formattedCandles);
+    } catch (error) {
+        console.error('Error fetching candlestick data:', error);
+    }
+}
+
+// Broadcast order book data to clients
+async function fetchAndBroadcastOrderBookData() {
+    try {
+        const orderBook = await client.book({ symbol: 'BTCUSDT' });
+        const formattedOrderBook = {
+            bids: orderBook.bids.slice(0, 10), // Top 10 bids
+            asks: orderBook.asks.slice(0, 10)  // Top 10 asks
+        };
+        broadcastData('orderBook', formattedOrderBook);
+    } catch (error) {
+        console.error('Error fetching order book data:', error);
+    }
+}
+
+// General function to broadcast data
+function broadcastData(type, data) {
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type, data }));
         }
     });
 }
 
-// Fetch order book depth
-async function getOrderBookDepth(symbol) {
-    try {
-        const depth = await client.book({ symbol });
-        return depth;
-    } catch (error) {
-        console.error('Error fetching order book depth:', error);
-        return null;
-    }
-}
+// Broadcast data every second
+setInterval(fetchAndBroadcastCandlestickData, 1000); // Update every second
+setInterval(fetchAndBroadcastOrderBookData, 1000); // Update every second
+setInterval(broadcastMoonPhaseAndSignals, 1000); // Broadcast moon phase and signals every second
 
-// Function to fetch and broadcast latest trade data
-async function fetchAndBroadcastTradeData() {
-    try {
-        const trades = await client.trades({ symbol: 'BTCUSDT', limit: 1 });
-        if (trades.length > 0) {
-            const latestTrade = trades[0];
-            const orderBookDepth = await getOrderBookDepth('BTCUSDT');
-            const intensity = calculateIntensity(orderBookDepth, parseFloat(latestTrade.price));
-            broadcastTradeData(parseFloat(latestTrade.price), intensity);
-        }
-    } catch (error) {
-        console.error('Error fetching trade data:', error);
-    }
-}
-
-// Function to calculate intensity based on order book depth
-function calculateIntensity(orderBookDepth, price) {
-    if (!orderBookDepth || !Array.isArray(orderBookDepth.bids) || !Array.isArray(orderBookDepth.asks)) {
-        console.error('Invalid order book depth data.');
-        return 0;
-    }
-
-    // Calculate bid volume
-    const bidVolume = orderBookDepth.bids.reduce((sum, bid) => {
-        const volume = parseFloat(bid.quantity);
-        return !isNaN(volume) ? sum + volume : sum;
-    }, 0);
-
-    // Calculate ask volume
-    const askVolume = orderBookDepth.asks.reduce((sum, ask) => {
-        const volume = parseFloat(ask.quantity);
-        return !isNaN(volume) ? sum + volume : sum;
-    }, 0);
-
-    // Ensure bidVolume and askVolume are valid numbers
-    const totalVolume = bidVolume + askVolume;
-    
-    // Determine price level for intensity calculation
-    const priceLevel = bidVolume > askVolume
-        ? (orderBookDepth.bids[0] ? parseFloat(orderBookDepth.bids[0].price) : price)
-        : (orderBookDepth.asks[0] ? parseFloat(orderBookDepth.asks[0].price) : price);
-
-    // Calculate intensity based on total volume and price difference
-    return totalVolume * Math.abs(price - priceLevel);
-}
-
-
-
-// Fetch and broadcast trade data every 2 seconds
-setInterval(fetchAndBroadcastTradeData, 2000);
-
-console.log('WebSocket server running on ws://localhost:3000');
+console.log('Server running on ws://localhost:3000');
