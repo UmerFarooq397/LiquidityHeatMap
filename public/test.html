@@ -40,7 +40,7 @@
         th {
             background-color: #f2f2f2;
         }
-        #moonPhase {
+        #moonPhase, #oiData {
             margin-top: 20px;
             text-align: center;
         }
@@ -80,6 +80,13 @@
         <p id="moonPhaseText">Fetching...</p>
     </div>
 
+    <div id="oiData">
+        <h3>Open Interest</h3>
+        <p>Current OI: <span id="currentOI">Loading...</span></p>
+        <p>Peak OI (1-day): <span id="peakOI">Loading...</span></p>
+        <p>Bottom OI (3-months): <span id="bottomOI">Loading...</span></p>
+    </div>
+
     <div id="tradeSignal">
         <p id="signalText"></p>
     </div>
@@ -100,6 +107,8 @@
             updateOrderBook(message.data);
         } else if (message.type === 'moonPhase') {
             updateMoonPhaseAndSignal(message.data);
+        } else if (message.type === 'OI') {
+            updateOIData(message.data);
         }
     };
 
@@ -205,7 +214,24 @@
         moonPhaseText.innerText = moonText;
 
         if (moonData.tradeSignal) {
-            signalText.innerText = `${moonData.tradeSignal} Signal: ${moonData.tradeSignal === 'BUY' ? '📈 Uptrend' : '📉 Downtrend'}`;
+            signalText.innerText = `MoonPhase:: ${moonData.tradeSignal} Signal: ${moonData.tradeSignal === 'BUY' ? '📈 Uptrend' : '📉 Downtrend'}`;
+        } else {
+            signalText.innerText = '';
+        }
+    }
+
+    function updateOIData(oiData) {
+        const currentOI = document.getElementById('currentOI');
+        const peakOI = document.getElementById('peakOI');
+        const bottomOI = document.getElementById('bottomOI');
+        const signalText = document.getElementById('signalText');
+
+        currentOI.innerText = oiData.currentOI.toFixed(2);
+        peakOI.innerText = oiData.peakOI.toFixed(2);
+        bottomOI.innerText = oiData.bottomOI.toFixed(2);
+
+        if (oiData.tradeSignal) {
+            signalText.innerText = `OI Signal:: ${oiData.tradeSignal}: ${oiData.tradeSignal.includes('BUY') ? '📈 Uptrend' : '📉 Downtrend'}`;
         } else {
             signalText.innerText = '';
         }
