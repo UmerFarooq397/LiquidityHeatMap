@@ -19,19 +19,48 @@ let OIData = []; // To store OI data
 const OIPeakThreshold = 0.95; // 95% of the peak zone
 const OIBottomThreshold = 0.05; // 5% of the bottom zone
 const superHighOIThreshold = 1.1; // 110% or more of peak OI to trigger a REKT warning
+const COINALYZE_API_KEY = '3a5f1420-17bd-474b-84a4-9061a184d2cd';
 
-
-// Fetch current Open Interest via Binance REST API
+// Fetch current Open Interest via Coinalyze API
 async function getCurrentOpenInterest(symbol) {
-    try {
-        const response = await axios.get('https://fapi.binance.com/fapi/v1/openInterest', {
-            params: { symbol }
-        });
-        return parseFloat(response.data.openInterest);
-    } catch (error) {
-        console.error('Error fetching open interest:', error);
-        return null;
-    }
+    const maxRetries = 3; // Number of retries on failure
+    let attempt = 0;
+
+    // Function to make the API request
+    const fetchOpenInterest = async () => {
+        try {
+            const response = await axios.get(`https://api.coinalyze.net/v1/open-interest?symbols=BTCUSD_PERP.A`, {
+                headers: {
+                    'api_key': `${COINALYZE_API_KEY}`,
+                }
+            });
+
+            // Check if response is valid
+            if (response.data && response.data.length > 0) {
+                const oiData = response.data.find(oi => oi.symbol === 'BTCUSD_PERP.A');
+                if (oiData) {
+                    return parseFloat(oiData.value);
+                } else {
+                    console.error(`No OI data found for symbol: ${symbol}`);
+                    return null; // If no OI data is found for the symbol
+                }
+            } else {
+                throw new Error(`Invalid data structure or empty response for symbol: ${symbol}`);
+            }
+        } catch (error) {
+            console.error(`Attempt ${attempt + 1} failed: ${error.message}`);
+            if (attempt < maxRetries) {
+                attempt++;
+                console.log(`Retrying... (${attempt}/${maxRetries})`);
+                await new Promise(res => setTimeout(res, 2000)); // Delay before retrying
+                return await fetchOpenInterest(); // Retry the request
+            } else {
+                console.error('Max retries reached. Returning null.');
+                return null; // Return null if max retries are reached
+            }
+        }
+    };
+    return await fetchOpenInterest();
 }
 async function fetchBTCMarketCapData() {
     try {
@@ -86,7 +115,6 @@ function calculateBottomOI(symbol) {
 // Monitor coins for OI change and broadcast trading signals
 async function monitorCoinsForOI() {
     // Fetch market cap data to focus on high market cap coins
-    
     const { symbol, marketCap } = await fetchBTCMarketCapData();
     const currentOI = await getCurrentOpenInterest(symbol);
     const oiChange = await calculateOIChange(symbol);
@@ -130,55 +158,7 @@ async function monitorCoinsForOI() {
     if (tradeSignal) {
         console.log(tradeSignal);
     }
-    
 }
-
-// // Broadcast OI-based trading signals
-// async function broadcastOITradingSignals() {
-//     const currentOI = await getCurrentOpenInterest();
-//     const peakOI = calculatePeakOI();
-//     const bottomOI = calculateBottomOI();
-
-//     let tradeSignal = null;
-
-//     // Recommend closing longs near OI peak
-//     if (currentOI >= OIPeakThreshold * peakOI) {
-//         tradeSignal = 'SELL (Close Longs)';
-//     }
-
-//     // Recommend going long near local OI bottom
-//     if (currentOI <= OIBottomThreshold * bottomOI) {
-//         tradeSignal = 'BUY (Open Longs)';
-//     }
-
-//     // Broadcast OI data and trade signals
-//     const OIDataToSend = {
-//         currentOI,
-//         peakOI,
-//         bottomOI,
-//         tradeSignal
-//     };
-
-//     wss.clients.forEach(client => {
-//         if (client.readyState === WebSocket.OPEN) {
-//             client.send(JSON.stringify({ type: 'OI', data: OIDataToSend }));
-//         }
-//     });
-
-//     if (tradeSignal) {
-//         lastTradeSignal = tradeSignal;
-//     }
-// }
-
-// // Update OI data periodically
-// setInterval(async () => {
-//     const currentOI = await getCurrentOpenInterest();
-//     OIData.push({ time: Date.now(), value: currentOI });
-
-//     // Keep only data for the last 3 months
-//     const threeMonthsAgo = Date.now() - 3 * 30 * 24 * 60 * 60 * 1000;
-//     OIData = OIData.filter(oi => oi.time >= threeMonthsAgo);
-// }, 60 * 1000);
 
 // Calculate the current moon phase
 function getCurrentMoonPhase() {
@@ -272,10 +252,7 @@ function broadcastData(type, data) {
 }
 
 // Adjust broadcast intervals for efficiency
-// setInterval(broadcastOITradingSignals, 6 * 1000);
-
-// Update OI data and broadcast signals periodically
-setInterval(monitorCoinsForOI, 60 * 1000); // Monitor every minute
+setInterval(monitorCoinsForOI, 10 * 1000); // Monitor every minute
 setInterval(fetchAndBroadcastCandlestickData, 5 * 1000); // Update every 5 seconds
 setInterval(fetchAndBroadcastOrderBookData, 5 * 1000); // Update every 5 seconds
 setInterval(broadcastMoonPhaseAndSignals, 6 * 1000); // Broadcast moon phase every minute
