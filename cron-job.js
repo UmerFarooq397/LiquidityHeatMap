@@ -19,7 +19,7 @@ connectDB().then(() => {
 
 function startTradeDataCronJobs() {
     /** Schedule the cron job to run every 60 minutes */
-    cron.schedule('0 * * * *', async () => {
+    cron.schedule('* * * * *', async () => {
         console.log(`Running fetchAndBroadcastTradeData for symbols at ${new Date()}`);
     
         for (const symbol of symbols) {
@@ -35,8 +35,8 @@ function startTradeDataCronJobs() {
 }
 
 function startMoonPhaseCronJobs() {
-    /** Schedule the cron job to run every 30 minutes */
-    cron.schedule('0 * * * *', async () => {
+    /** Schedule the cron job to run every 60 minutes */
+    cron.schedule('* * * * *', async () => {
         console.log(`Running fetchAndBroadcastTradeData for symbols at ${new Date()}`);
     
         for (const symbol of symbols) {
