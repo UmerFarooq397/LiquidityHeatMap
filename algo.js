@@ -27,6 +27,8 @@ const chartInstance = null;
 const DUNE_API_URL = 'https://api.dune.com/api/';
 const DUNE_API_KEY = 'QXBhbSq6WuPtvtc7eChHIUwpDnuL5run';
 const MURAD_WALLET_QUERY = 'v1/query/4143247/results?limit=1000';
+const PROFITABLE_BOT_WALLETS = 'v1/query/4216808/results?limit=10';
+const WALLET_ANALYSIS = 'v1/query/4228640/results?limit=1000';
 
 // Fetch current Open Interest via Binance REST API
 async function getCurrentOpenInterest(symbol) {
@@ -417,6 +419,69 @@ async function callApi(query) {
   }
 }
 
+
+// Function to check Murad's transactions
+async function checkProfitableBotWallets() {
+  try {
+    const data = await callApi(PROFITABLE_BOT_WALLETS);
+    if (data && data.result && data.result.rows) {
+      const transactions = data.result.rows;
+      transactions.forEach(async transaction => {
+        const { user } = transaction;
+        await checkWalletAnalysis(user);
+      });
+    }
+    console.log('No transactions found.');
+  } catch (error) {
+    console.error('Error fetching data from Dune API:', error);
+  }
+}
+async function checkWalletAnalysis(wallet_address) {
+  try {
+    if (!getDB()) {
+      await connectDB();
+    }
+    let signal = "";
+    const db = getDB();
+    const data = await callApi(WALLET_ANALYSIS + "&wallet_address=" + wallet_address);
+    if (data && data.result && data.result.rows) {
+      const transactions = data.result.rows;
+      transactions.forEach(async transaction => {
+        const { asset } = transaction;
+        const { sell } = transaction;
+        const { token_address } = transaction;
+        const { token_balance } = transaction;
+        const { buy } = transaction;
+        const { total_pnl } = transaction;
+        const profitableWallet
+        = await db.collection(`profitable-wallets`).findOne({ wallet_address,  token_address});
+        
+        if(!profitableWallet && !sell) {
+          signal = `${wallet_address} is holding ${token_balance} ${asset} at price $ ${buy} and contract addres ${token_address}`;
+          await db.collection('profitable-wallets').insertOne({ wallet_address, token_address, signal, timestamp: new Date(), rawData: transaction});
+        }
+        else if (profitableWallet && (!profitableWallet.rawData.sell) && sell) {
+          signal = `${wallet_address} sold ${asset} : contract Address ${token_address} at price $ ${sell} and get profit ${total_pnl}`;
+          await db.collection('profitable-wallets').updateOne(
+            { wallet_address, token_address }, // Filter to find the document
+            { 
+              $set: { 
+                signal, 
+                timestamp: new Date(), 
+                rawData: transaction 
+              } 
+            },
+            { upsert: true } // Create a new document if no match is found
+          );
+        }
+        console.log(signal);
+      });
+    }
+    console.log('No transactions found.');
+  } catch (error) {
+    console.error('Error fetching data from Dune API:', error);
+  }
+}
 // Function to check Murad's transactions
 async function checkMuradTransactions() {
   try {
@@ -465,4 +530,4 @@ async function checkMuradTransactions() {
 
 // Run the
 
-module.exports = { checkMuradTransactions, broadcastMoonPhaseAndSignals, monitorCoinsForOI, fetchAndBroadcastTradeData };
+module.exports = { checkMuradTransactions, broadcastMoonPhaseAndSignals, monitorCoinsForOI, fetchAndBroadcastTradeData, checkProfitableBotWallets };
