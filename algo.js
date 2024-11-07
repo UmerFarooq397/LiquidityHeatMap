@@ -458,7 +458,7 @@ async function checkWalletAnalysis(wallet_address) {
         
         if(!profitableWallet && !sell) {
           signal = `${wallet_address} is holding ${token_balance} ${asset} at price $ ${buy} and contract addres ${token_address}`;
-          await db.collection('profitable-wallets').insertOne({ wallet_address, token_address, signal, timestamp: new Date(), rawData: transaction});
+          await db.collection('profitable-wallets').insertOne({ wallet_address, token_address, signal, createdTimeStamp: new Date(), updatedTimeStamp: new Date(), rawData: transaction});
         }
         else if (profitableWallet && (!profitableWallet.rawData.sell) && sell) {
           signal = `${wallet_address} sold ${asset} : contract Address ${token_address} at price $ ${sell} and get profit ${total_pnl}`;
@@ -467,7 +467,7 @@ async function checkWalletAnalysis(wallet_address) {
             { 
               $set: { 
                 signal, 
-                timestamp: new Date(), 
+                updatedTimeStamp: new Date(), 
                 rawData: transaction 
               } 
             },
