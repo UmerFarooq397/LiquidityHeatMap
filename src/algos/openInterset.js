@@ -111,7 +111,7 @@ async function monitorCoinsForOI() {
         tradeSignal,
         createdTimeStamp: new Date()
     };
-
+    const db = getDB();
     // Send data here
     await db.collection('openInterset-BTC').insertOne(OIDataToSend);
 

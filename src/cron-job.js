@@ -1,7 +1,7 @@
 // cron-job.js
 const cron = require('node-cron');
 const { fetchAndBroadcastTradeData, broadcastMoonPhaseAndSignals } = require('./algos/trade-moon-phase'); 
-const { checkProfitableBotWallets, checkMuradTransactions, getAssetsWalletCount } = require('./algos/dunelogic'); 
+const { checkProfitableBotWallets, checkMuradTransactions, getAssetsWalletCount,checkMuradHoldings } = require('./algos/dunelogic'); 
 const { monitorCoinsForOI } = require('./algos/openinterset'); 
 
 // const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'AVAXUSDT', 'SUIUSDT', 'SEIUSDT', 'APTUSDT', 'OPUSDT', 'INJUSDT', 'ARBUSDT', 'FETUSDT']; 
@@ -13,11 +13,14 @@ const { connectDB } = require('./database/db');
 connectDB().then(() => {
     // startOpenIntersetCronJobs();
     // startProfitableWalletJobs();
-    // startTradeDataCronJobs();  
+    // startTradeDataCronJobs();
     // startMoonPhaseCronJobs();
 
     // checkProfitableBotWallets();
-    getAssetsWalletCount();
+    // checkMuradTransactions();
+    // getAssetsWalletCount();
+    // checkMuradHoldings();
+    monitorCoinsForOI()
 
 }).catch(error => {
   console.error('Failed to connect to MongoDB:', error);
