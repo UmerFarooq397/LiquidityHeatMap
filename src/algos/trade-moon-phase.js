@@ -267,4 +267,4 @@ async function getCurrentBTCPrice(symbol) {
 
 // Run the
 
-module.exports = { broadcastMoonPhaseAndSignals, monitorCoinsForOI, fetchAndBroadcastTradeData };
+module.exports = { broadcastMoonPhaseAndSignals, fetchAndBroadcastTradeData };

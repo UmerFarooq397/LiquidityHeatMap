@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { connectDB, getDB } = require('../db');
+const { connectDB, getDB } = require('./../database/db');
 
 // Dune API URL and API key
 const DUNE_API_URL = 'https://api.dune.com/api/';
@@ -128,5 +128,31 @@ async function callApi(query) {
     }
     return [];
   }
+  async function getAssetsWalletCount() {
+    try {
+      if (!getDB()) {
+        await connectDB();
+      }
+      const db = getDB();
+      var groupedData = await  db.collection("profitable-wallets").aggregate([
+        {
+          "$group": {
+            "_id": "$rawData.asset",              // Group by the asset name
+            "total_balance": { "$sum": "$rawData.token_balance" },  // Sum up the balances
+            "total_buy": { "$sum": "$rawData.buy" },                // Sum up buy prices
+            "average_buy": { "$avg": "$rawData.buy" },              // Average buy price
+            "wallets": { "$push": "$wallet_address" }               // Array of wallet addresses holding this asset
+          }
+        }
+      ]);
 
-  module.exports = { checkMuradTransactions, checkProfitableBotWallets };
+      console.log(groupedData);
+      
+
+
+    } catch (error) {
+      console.error('Error fetching data from Dune API:', error);
+    }
+    
+  }
+  module.exports = { checkMuradTransactions, checkProfitableBotWallets, getAssetsWalletCount };

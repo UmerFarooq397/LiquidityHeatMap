@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { connectDB, getDB } = require('../db');
+const { connectDB, getDB } = require('./../database/db');
 
 // OI-related variables
 let OIData = []; // To store OI data
